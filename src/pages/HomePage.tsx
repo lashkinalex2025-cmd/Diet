@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search, WifiOff } from 'lucide-react';
 import { SearchForm } from '@/features/food-search/SearchForm';
@@ -10,12 +11,24 @@ import { useHistoryActions } from '@/hooks/useHistory';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { FoodApiError } from '@/types/food';
 import { QUERY_GC_TIME_MS, QUERY_STALE_TIME_MS } from '@/constants';
+import { sanitizeQuery } from '@/utils/validation';
 
 export function HomePage() {
-  const [query, setQuery] = useState('');
-  const [submitted, setSubmitted] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialQ = sanitizeQuery(searchParams.get('q') ?? '');
+  const [query, setQuery] = useState(initialQ);
+  const [submitted, setSubmitted] = useState(initialQ);
   const online = useOnlineStatus();
   const { add } = useHistoryActions();
+
+  useEffect(() => {
+    const q = sanitizeQuery(searchParams.get('q') ?? '');
+    if (q && q !== submitted) {
+      setQuery(q);
+      setSubmitted(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const search = useQuery({
     queryKey: ['food-search', submitted],
