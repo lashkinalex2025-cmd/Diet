@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Diet</string>
+    <string name="title_activity_main">Diet</string>
+    <string name="package_name">com.diet.app</string>
+    <string name="custom_url_scheme">com.diet.app</string>
+</resources>
