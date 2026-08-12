@@ -94,14 +94,26 @@ Package ID: `com.diet.app`
 
 ## GitHub Pages
 
-1. В репозитории: **Settings → Pages → Build and deployment → GitHub Actions**.
-2. Workflow `.github/workflows/deploy.yml` собирает проект с `VITE_BASE_PATH=/Diet/` и публикует `dist`.
-3. CI (`.github/workflows/ci.yml`) на каждый push/PR: install → typecheck → lint → test → build.
+Сайт: https://lashkinalex2025-cmd.github.io/Diet/
 
-Локальная проверка production-сборки:
+Workflow `.github/workflows/deploy.yml` на каждый push в `main`:
+
+1. собирает production (`VITE_BASE_PATH=/Diet/`);
+2. публикует папку `dist` в ветку **`gh-pages`**.
+
+В репозитории: **Settings → Pages → Build and deployment**:
+
+- Source: **Deploy from a branch**
+- Branch: **`gh-pages`** / folder **`/` (root)**
+
+Либо Source: **GitHub Actions** (если включён deploy-pages).
+
+> Важно: не публикуйте корень ветки `main` — там исходный `index.html` с `/src/main.tsx`, приложение из него **не запустится**. Нужна именно production-сборка (`dist`).
+
+Локальная проверка:
 
 ```bash
-VITE_BASE_PATH=/Diet/ npm run build
+npm run build:pages
 npm run preview
 ```
 
