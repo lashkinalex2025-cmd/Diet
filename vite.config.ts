@@ -47,7 +47,7 @@ export default defineConfig({
         navigateFallback: 'index.html',
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/world\.openfoodfacts\.org\/.*/i,
+            urlPattern: /^https:\/\/(world|search)\.openfoodfacts\.org\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'off-api-cache',

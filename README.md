@@ -111,7 +111,8 @@ npm run preview
 
 ### По умолчанию: Open Food Facts
 
-- URL: `https://world.openfoodfacts.org`
+- Поиск: `https://search.openfoodfacts.org` (основной)
+- Fallback: `https://world.openfoodfacts.org/cgi/search.pl`
 - **API-ключ не требуется**
 - Адаптер: `src/services/api/openFoodFacts.ts`
 
@@ -133,7 +134,7 @@ VITE_USDA_API_KEY=your_key_here
 
 ```env
 VITE_BASE_PATH=/Diet/
-VITE_FOOD_API_URL=https://world.openfoodfacts.org
+VITE_FOOD_API_URL=https://search.openfoodfacts.org
 VITE_FOOD_API_KEY=
 VITE_FOOD_PROVIDER=openfoodfacts
 VITE_USDA_API_KEY=

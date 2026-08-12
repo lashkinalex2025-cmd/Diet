@@ -45,7 +45,7 @@ describe('mapOffProduct', () => {
 });
 
 describe('mapOffSearchResponse', () => {
-  it('filters and sorts by nutrition completeness', () => {
+  it('filters and sorts by nutrition completeness (legacy products)', () => {
     const result = mapOffSearchResponse(
       {
         count: 2,
@@ -69,5 +69,23 @@ describe('mapOffSearchResponse', () => {
     expect(result.items[0]?.id).toBe('2');
     expect(result.query).toBe('test');
     expect(result.source).toBe('Open Food Facts');
+  });
+
+  it('maps search hits format', () => {
+    const result = mapOffSearchResponse(
+      {
+        count: 1,
+        hits: [
+          {
+            code: '99',
+            product_name: 'Яблоко',
+            nutriments: { 'energy-kcal_100g': 52, proteins_100g: 0.3 },
+          },
+        ],
+      },
+      'яблоко',
+    );
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.name).toBe('Яблоко');
   });
 });

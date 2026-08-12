@@ -4,9 +4,12 @@ import type { Food, FoodSearchResult } from '@/types/food';
 import { FoodApiError } from '@/types/food';
 import { sanitizeNumber } from '@/utils/nutrition';
 
-const DEFAULT_BASE =
+/** Primary search host (less aggressive rate limiting than world.openfoodfacts.org). */
+const SEARCH_BASE =
   import.meta.env.VITE_FOOD_API_URL?.replace(/\/$/, '') ||
-  'https://world.openfoodfacts.org';
+  'https://search.openfoodfacts.org';
+
+const PRODUCT_BASE = 'https://world.openfoodfacts.org';
 
 interface OffNutriments {
   'energy-kcal_100g'?: number | string;
@@ -23,6 +26,7 @@ interface OffProduct {
   product_name?: string;
   product_name_ru?: string;
   product_name_en?: string;
+  product_name_fr?: string;
   generic_name?: string;
   generic_name_ru?: string;
   brands?: string;
@@ -36,7 +40,14 @@ interface OffProduct {
   serving_quantity?: number | string;
 }
 
-interface OffSearchResponse {
+interface OffSearchHitsResponse {
+  count?: number;
+  hits?: OffProduct[];
+  page?: number;
+  page_size?: number;
+}
+
+interface OffLegacySearchResponse {
   count?: number;
   products?: OffProduct[];
 }
@@ -46,6 +57,7 @@ function pickName(product: OffProduct): string {
     product.product_name_ru ||
     product.product_name ||
     product.product_name_en ||
+    product.product_name_fr ||
     product.generic_name_ru ||
     product.generic_name ||
     'Без названия'
@@ -96,7 +108,6 @@ export function mapOffProduct(product: OffProduct): Food | null {
     barcode: product.code,
   };
 
-  // Skip products with no useful name and no nutrition at all
   if (
     food.name === 'Без названия' &&
     food.calories == null &&
@@ -110,22 +121,31 @@ export function mapOffProduct(product: OffProduct): Food | null {
   return food;
 }
 
+function sortByNutrition(items: Food[]): Food[] {
+  return [...items].sort((a, b) => {
+    const score = (f: Food) =>
+      (f.calories != null ? 2 : 0) +
+      (f.protein != null ? 1 : 0) +
+      (f.fat != null ? 1 : 0) +
+      (f.carbohydrates != null ? 1 : 0);
+    return score(b) - score(a);
+  });
+}
+
 export function mapOffSearchResponse(
-  data: OffSearchResponse,
+  data: OffLegacySearchResponse | OffSearchHitsResponse,
   query: string,
 ): FoodSearchResult {
-  const items = (data.products ?? [])
-    .map(mapOffProduct)
-    .filter((f): f is Food => f != null)
-    // Prefer items that actually have some nutrition data
-    .sort((a, b) => {
-      const score = (f: Food) =>
-        (f.calories != null ? 2 : 0) +
-        (f.protein != null ? 1 : 0) +
-        (f.fat != null ? 1 : 0) +
-        (f.carbohydrates != null ? 1 : 0);
-      return score(b) - score(a);
-    });
+  const products =
+    'hits' in data && data.hits
+      ? data.hits
+      : 'products' in data && data.products
+        ? data.products
+        : [];
+
+  const items = sortByNutrition(
+    products.map(mapOffProduct).filter((f): f is Food => f != null),
+  );
 
   return {
     items,
@@ -137,36 +157,46 @@ export function mapOffSearchResponse(
 
 export class OpenFoodFactsService implements FoodApiService {
   readonly name = 'Open Food Facts';
-  private readonly baseUrl: string;
+  private readonly searchBase: string;
 
-  constructor(baseUrl = DEFAULT_BASE) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+  constructor(searchBase = SEARCH_BASE) {
+    this.searchBase = searchBase.replace(/\/$/, '');
   }
 
   async search(query: string): Promise<FoodSearchResult> {
-    const params = new URLSearchParams({
-      search_terms: query,
-      search_simple: '1',
-      action: 'process',
-      json: '1',
+    // Prefer dedicated search service (more reliable for anonymous clients)
+    const searchUrl = `${this.searchBase}/search?${new URLSearchParams({
+      q: query,
       page_size: '24',
-      fields:
-        'code,_id,product_name,product_name_ru,product_name_en,generic_name,generic_name_ru,brands,categories,categories_tags,image_front_small_url,image_small_url,image_url,nutriments,serving_size,serving_quantity',
-    });
-
-    const url = `${this.baseUrl}/cgi/search.pl?${params.toString()}`;
+    }).toString()}`;
 
     try {
-      const data = await fetchJson<OffSearchResponse>(url);
+      const data = await fetchJson<OffSearchHitsResponse>(searchUrl);
       return mapOffSearchResponse(data, query);
-    } catch (error) {
-      if (error instanceof FoodApiError) throw error;
-      throw new FoodApiError('parse', 'Не удалось обработать ответ API');
+    } catch (primaryError) {
+      // Fallback to classic CGI endpoint
+      try {
+        const params = new URLSearchParams({
+          search_terms: query,
+          search_simple: '1',
+          action: 'process',
+          json: '1',
+          page_size: '24',
+          fields:
+            'code,_id,product_name,product_name_ru,product_name_en,generic_name,generic_name_ru,brands,categories,categories_tags,image_front_small_url,image_small_url,image_url,nutriments,serving_size,serving_quantity',
+        });
+        const legacyUrl = `${PRODUCT_BASE}/cgi/search.pl?${params.toString()}`;
+        const data = await fetchJson<OffLegacySearchResponse>(legacyUrl);
+        return mapOffSearchResponse(data, query);
+      } catch {
+        if (primaryError instanceof FoodApiError) throw primaryError;
+        throw new FoodApiError('parse', 'Не удалось обработать ответ API');
+      }
     }
   }
 
   async getById(id: string): Promise<Food | null> {
-    const url = `${this.baseUrl}/api/v2/product/${encodeURIComponent(id)}.json`;
+    const url = `${PRODUCT_BASE}/api/v2/product/${encodeURIComponent(id)}.json`;
     try {
       const data = await fetchJson<{ status?: number; product?: OffProduct }>(url);
       if (data.status !== 1 || !data.product) return null;
