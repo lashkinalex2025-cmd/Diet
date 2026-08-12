@@ -45,7 +45,7 @@ body {
   }
 
   .page {
-    @apply mx-auto w-full max-w-content px-4 pb-28 pt-4 sm:px-6 sm:pb-10 sm:pt-6;
+    @apply mx-auto w-full max-w-content px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-6;
   }
 }
 

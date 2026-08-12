@@ -1,5 +1,8 @@
 export const APP_NAME = 'Diet';
 export const APP_VERSION = '1.0.0';
+export const APP_AUTHOR = 'Alex Lashkin';
+export const APP_YEAR = 2026;
+export const APP_RIGHTS = 'Все права защищены';
 
 export const DEFAULT_PORTION_GRAMS = 100;
 

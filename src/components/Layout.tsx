@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { Heart, History, Home, Settings } from 'lucide-react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { cn } from '@/utils/cn';
+import { AppFooter } from './AppFooter';
 
 const nav: Array<{
   to: string;
@@ -19,7 +20,7 @@ export function Layout() {
   const online = useOnlineStatus();
 
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="flex min-h-dvh flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <header className="safe-top sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
         <div className="mx-auto flex max-w-content items-center justify-between px-4 py-3 sm:px-6">
           <div>
@@ -38,7 +39,7 @@ export function Layout() {
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-5xl gap-6 lg:px-6">
+      <div className="mx-auto flex w-full max-w-5xl flex-1 gap-6 lg:px-6">
         <aside className="hidden w-52 shrink-0 py-6 lg:block">
           <nav className="sticky top-24 space-y-1">
             {nav.map(({ to, label, icon: Icon, end }) => (
@@ -66,6 +67,8 @@ export function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <AppFooter />
 
       <nav
         className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 lg:hidden"

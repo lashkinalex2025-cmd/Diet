@@ -5,8 +5,11 @@ import { useFavoriteActions } from '@/hooks/useFavorites';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { clearSearchCache } from '@/services/food/foodService';
 import {
+  APP_AUTHOR,
   APP_NAME,
+  APP_RIGHTS,
   APP_VERSION,
+  APP_YEAR,
   DATA_SOURCE_LABEL,
   DISCLAIMER,
 } from '@/constants';
@@ -114,6 +117,11 @@ export function SettingsPage() {
         <p className="text-sm">
           <span className="font-medium">{APP_NAME}</span> · версия {APP_VERSION}
         </p>
+        <p className="text-sm text-slate-500">
+          Разработчик: {APP_AUTHOR}
+        </p>
+        <p className="text-sm text-slate-500">Год разработки: {APP_YEAR}</p>
+        <p className="text-sm text-slate-500">{APP_RIGHTS}.</p>
         <p className="text-sm text-slate-500">
           Источник данных: {DATA_SOURCE_LABEL}
           {import.meta.env.VITE_FOOD_PROVIDER === 'usda' ? ' / USDA' : ''}
