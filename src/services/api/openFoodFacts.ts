@@ -5,12 +5,19 @@ import { FoodApiError } from '@/types/food';
 import { sanitizeNumber } from '@/utils/nutrition';
 
 /**
- * Prefer world/ru hosts: they send Access-Control-Allow-Origin: * (works in browsers).
- * search.openfoodfacts.org is a fallback (often missing ACAO → CORS blocked).
+ * Host order (browser-safe = Access-Control-Allow-Origin: *):
+ * 1. world.openfoodfacts.net — staging/public, most reliable for anonymous browser clients
+ * 2. world / ru production mirrors
+ * 3. search.openfoodfacts.org — good data, but often no ACAO (CORS fail in browser)
  */
-const WORLD_BASE = 'https://world.openfoodfacts.org';
-const RU_BASE = 'https://ru.openfoodfacts.org';
-const SEARCH_BASE =
+const SEARCH_HOSTS = [
+  'https://world.openfoodfacts.net',
+  'https://world.openfoodfacts.org',
+  'https://ru.openfoodfacts.org',
+  'https://ssl-api.openfoodfacts.org',
+] as const;
+
+const SEARCH_SERVICE =
   import.meta.env.VITE_FOOD_API_URL?.replace(/\/$/, '') ||
   'https://search.openfoodfacts.org';
 
@@ -156,10 +163,6 @@ export function mapOffSearchResponse(
   };
 }
 
-function hasCyrillic(text: string): boolean {
-  return /[а-яёА-ЯЁ]/.test(text);
-}
-
 function buildCgiUrl(host: string, query: string): string {
   const params = new URLSearchParams({
     search_terms: query,
@@ -177,42 +180,41 @@ export class OpenFoodFactsService implements FoodApiService {
   readonly name = 'Open Food Facts';
 
   async search(query: string): Promise<FoodSearchResult> {
-    const hosts = hasCyrillic(query)
-      ? [RU_BASE, WORLD_BASE]
-      : [WORLD_BASE, RU_BASE];
-
     let lastError: unknown;
+    let emptyResult: FoodSearchResult | null = null;
 
-    for (const host of hosts) {
+    for (const host of SEARCH_HOSTS) {
       try {
         const data = await fetchJson<OffLegacySearchResponse>(buildCgiUrl(host, query));
         const result = mapOffSearchResponse(data, query);
         if (result.items.length > 0) return result;
-        // empty but valid — still return so UI can show "not found"
-        if (data.products) return result;
+        emptyResult = result;
       } catch (error) {
         lastError = error;
       }
     }
 
-    // Last resort: dedicated search service (may fail CORS in some browsers)
+    // Search service (may be blocked by CORS in browsers)
     try {
-      const searchUrl = `${SEARCH_BASE}/search?${new URLSearchParams({
+      const searchUrl = `${SEARCH_SERVICE}/search?${new URLSearchParams({
         q: query,
         page_size: '24',
       }).toString()}`;
       const data = await fetchJson<OffSearchHitsResponse>(searchUrl);
-      return mapOffSearchResponse(data, query);
+      const result = mapOffSearchResponse(data, query);
+      if (result.items.length > 0) return result;
+      emptyResult = result;
     } catch (error) {
       lastError = error;
     }
 
+    if (emptyResult) return emptyResult;
     if (lastError instanceof FoodApiError) throw lastError;
     throw new FoodApiError('network', 'Не удалось подключиться к базе продуктов');
   }
 
   async getById(id: string): Promise<Food | null> {
-    for (const host of [WORLD_BASE, RU_BASE]) {
+    for (const host of SEARCH_HOSTS) {
       const url = `${host}/api/v2/product/${encodeURIComponent(id)}.json`;
       try {
         const data = await fetchJson<{ status?: number; product?: OffProduct }>(url);
