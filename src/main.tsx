@@ -19,5 +19,14 @@ createRoot(rootEl).render(
 );
 
 if ('serviceWorker' in navigator) {
-  registerSW({ immediate: true });
+  try {
+    registerSW({
+      immediate: true,
+      onRegisterError(error) {
+        console.warn('Service worker registration failed', error);
+      },
+    });
+  } catch (error) {
+    console.warn('Service worker unavailable', error);
+  }
 }

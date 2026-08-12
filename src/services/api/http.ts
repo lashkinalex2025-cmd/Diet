@@ -1,12 +1,6 @@
 import { API_TIMEOUT_MS } from '@/constants';
 import { FoodApiError } from '@/types/food';
 
-const DEFAULT_HEADERS: HeadersInit = {
-  Accept: 'application/json',
-  // Open Food Facts asks clients to identify themselves
-  'User-Agent': 'Diet/1.0 (https://github.com/lashkinalex2025-cmd/Diet)',
-};
-
 export async function fetchJson<T>(
   url: string,
   options: RequestInit = {},
@@ -20,7 +14,7 @@ export async function fetchJson<T>(
       ...options,
       signal: controller.signal,
       headers: {
-        ...DEFAULT_HEADERS,
+        Accept: 'application/json',
         ...(options.headers ?? {}),
       },
     });
@@ -34,8 +28,14 @@ export async function fetchJson<T>(
     }
 
     const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('application/json')) {
-      // OFF sometimes returns HTML rate-limit pages with 200/503
+    const text = await response.text();
+
+    // OFF rate-limit / error pages are often HTML with a 200/503 status
+    if (
+      contentType.includes('text/html') ||
+      text.trimStart().startsWith('<!DOCTYPE') ||
+      text.trimStart().startsWith('<html')
+    ) {
       throw new FoodApiError(
         'http',
         'Не удалось подключиться к базе продуктов',
@@ -43,7 +43,11 @@ export async function fetchJson<T>(
       );
     }
 
-    return (await response.json()) as T;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new FoodApiError('parse', 'Не удалось обработать ответ API');
+    }
   } catch (error) {
     if (error instanceof FoodApiError) throw error;
 

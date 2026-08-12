@@ -4,12 +4,15 @@ import type { Food, FoodSearchResult } from '@/types/food';
 import { FoodApiError } from '@/types/food';
 import { sanitizeNumber } from '@/utils/nutrition';
 
-/** Primary search host (less aggressive rate limiting than world.openfoodfacts.org). */
+/**
+ * Prefer world/ru hosts: they send Access-Control-Allow-Origin: * (works in browsers).
+ * search.openfoodfacts.org is a fallback (often missing ACAO → CORS blocked).
+ */
+const WORLD_BASE = 'https://world.openfoodfacts.org';
+const RU_BASE = 'https://ru.openfoodfacts.org';
 const SEARCH_BASE =
   import.meta.env.VITE_FOOD_API_URL?.replace(/\/$/, '') ||
   'https://search.openfoodfacts.org';
-
-const PRODUCT_BASE = 'https://world.openfoodfacts.org';
 
 interface OffNutriments {
   'energy-kcal_100g'?: number | string;
@@ -43,8 +46,6 @@ interface OffProduct {
 interface OffSearchHitsResponse {
   count?: number;
   hits?: OffProduct[];
-  page?: number;
-  page_size?: number;
 }
 
 interface OffLegacySearchResponse {
@@ -155,55 +156,73 @@ export function mapOffSearchResponse(
   };
 }
 
+function hasCyrillic(text: string): boolean {
+  return /[а-яёА-ЯЁ]/.test(text);
+}
+
+function buildCgiUrl(host: string, query: string): string {
+  const params = new URLSearchParams({
+    search_terms: query,
+    search_simple: '1',
+    action: 'process',
+    json: '1',
+    page_size: '24',
+    fields:
+      'code,_id,product_name,product_name_ru,product_name_en,generic_name,generic_name_ru,brands,categories,categories_tags,image_front_small_url,image_small_url,image_url,nutriments,serving_size,serving_quantity',
+  });
+  return `${host}/cgi/search.pl?${params.toString()}`;
+}
+
 export class OpenFoodFactsService implements FoodApiService {
   readonly name = 'Open Food Facts';
-  private readonly searchBase: string;
-
-  constructor(searchBase = SEARCH_BASE) {
-    this.searchBase = searchBase.replace(/\/$/, '');
-  }
 
   async search(query: string): Promise<FoodSearchResult> {
-    // Prefer dedicated search service (more reliable for anonymous clients)
-    const searchUrl = `${this.searchBase}/search?${new URLSearchParams({
-      q: query,
-      page_size: '24',
-    }).toString()}`;
+    const hosts = hasCyrillic(query)
+      ? [RU_BASE, WORLD_BASE]
+      : [WORLD_BASE, RU_BASE];
 
-    try {
-      const data = await fetchJson<OffSearchHitsResponse>(searchUrl);
-      return mapOffSearchResponse(data, query);
-    } catch (primaryError) {
-      // Fallback to classic CGI endpoint
+    let lastError: unknown;
+
+    for (const host of hosts) {
       try {
-        const params = new URLSearchParams({
-          search_terms: query,
-          search_simple: '1',
-          action: 'process',
-          json: '1',
-          page_size: '24',
-          fields:
-            'code,_id,product_name,product_name_ru,product_name_en,generic_name,generic_name_ru,brands,categories,categories_tags,image_front_small_url,image_small_url,image_url,nutriments,serving_size,serving_quantity',
-        });
-        const legacyUrl = `${PRODUCT_BASE}/cgi/search.pl?${params.toString()}`;
-        const data = await fetchJson<OffLegacySearchResponse>(legacyUrl);
-        return mapOffSearchResponse(data, query);
-      } catch {
-        if (primaryError instanceof FoodApiError) throw primaryError;
-        throw new FoodApiError('parse', 'Не удалось обработать ответ API');
+        const data = await fetchJson<OffLegacySearchResponse>(buildCgiUrl(host, query));
+        const result = mapOffSearchResponse(data, query);
+        if (result.items.length > 0) return result;
+        // empty but valid — still return so UI can show "not found"
+        if (data.products) return result;
+      } catch (error) {
+        lastError = error;
       }
     }
+
+    // Last resort: dedicated search service (may fail CORS in some browsers)
+    try {
+      const searchUrl = `${SEARCH_BASE}/search?${new URLSearchParams({
+        q: query,
+        page_size: '24',
+      }).toString()}`;
+      const data = await fetchJson<OffSearchHitsResponse>(searchUrl);
+      return mapOffSearchResponse(data, query);
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (lastError instanceof FoodApiError) throw lastError;
+    throw new FoodApiError('network', 'Не удалось подключиться к базе продуктов');
   }
 
   async getById(id: string): Promise<Food | null> {
-    const url = `${PRODUCT_BASE}/api/v2/product/${encodeURIComponent(id)}.json`;
-    try {
-      const data = await fetchJson<{ status?: number; product?: OffProduct }>(url);
-      if (data.status !== 1 || !data.product) return null;
-      return mapOffProduct(data.product);
-    } catch (error) {
-      if (error instanceof FoodApiError) throw error;
-      return null;
+    for (const host of [WORLD_BASE, RU_BASE]) {
+      const url = `${host}/api/v2/product/${encodeURIComponent(id)}.json`;
+      try {
+        const data = await fetchJson<{ status?: number; product?: OffProduct }>(url);
+        if (data.status === 1 && data.product) {
+          return mapOffProduct(data.product);
+        }
+      } catch {
+        // try next host
+      }
     }
+    return null;
   }
 }

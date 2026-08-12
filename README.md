@@ -123,8 +123,9 @@ npm run preview
 
 ### По умолчанию: Open Food Facts
 
-- Поиск: `https://search.openfoodfacts.org` (основной)
-- Fallback: `https://world.openfoodfacts.org/cgi/search.pl`
+- Основной: `https://world.openfoodfacts.org` (CORS `*`)
+- Для русских запросов: `https://ru.openfoodfacts.org`
+- Fallback: `https://search.openfoodfacts.org`
 - **API-ключ не требуется**
 - Адаптер: `src/services/api/openFoodFacts.ts`
 

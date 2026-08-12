@@ -15,7 +15,7 @@ export const SEARCH_DEBOUNCE_MS = 350;
 export const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 export const QUERY_GC_TIME_MS = 30 * 60 * 1000;
 
-export const DATA_SOURCE_LABEL = 'Open Food Facts (search.openfoodfacts.org)';
+export const DATA_SOURCE_LABEL = 'Open Food Facts';
 
 export const DISCLAIMER =
   'Информация о пищевой ценности предоставляется справочно и может отличаться в зависимости от продукта, бренда, приготовления и размера порции. Приложение не заменяет консультацию врача или диетолога.';
